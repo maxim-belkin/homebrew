@@ -123,11 +123,24 @@ __brew_complete_files() {
 
 # https://github.com/Homebrew/homebrew-aliases
 __brew_list_aliases() {
+  # Cache aliases and directory mtime in global variables for the session
   local aliases_dir="${HOME}/.brew-aliases"
   local pattern="^# alias: brew ([[:alnum:]-]+)$"
   local -a aliases
 
   [[ ! -d ${aliases_dir} ]] && return
+
+  local cur_mtime
+  if stat -c %Y . &>/dev/null; then
+    cur_mtime="$(stat -c %Y "${aliases_dir}")"
+  else
+    cur_mtime="$(stat -f %m "${aliases_dir}")"
+  fi
+
+  if [[ -n "${__BREW_ALIAS_CACHE}" && "${__BREW_ALIAS_CACHE_MTIME}" == "${cur_mtime}" ]]; then
+    echo "${__BREW_ALIAS_CACHE}"
+    return
+  fi
 
   for file in "${aliases_dir}"/*; do
     [[ ! -f ${file} ]] && continue
@@ -138,7 +151,11 @@ __brew_list_aliases() {
       fi
     done < "${file}"
   done
-  [[ -n ${aliases[*]+"${aliases[*]}"} ]] && echo "${aliases[@]}"
+  if [[ -n ${aliases[*]+"${aliases[*]}"} ]]; then
+    __BREW_ALIAS_CACHE="${aliases[@]}"
+    __BREW_ALIAS_CACHE_MTIME="${cur_mtime}"
+    echo "${__BREW_ALIAS_CACHE}"
+  fi
 }
 
 _brew___cache() {
